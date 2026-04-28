@@ -11,5 +11,6 @@ from .planck_clik import Planck2018Clik as Planck2018Clik
 from .planck_clik import PlanckClik as PlanckClik
 from .planck_pliklite import PlanckPlikLite as PlanckPlikLite
 from .sn import SN as SN
+from .bbn import BBN
 
 _is_abstract = True

@@ -115,7 +115,7 @@ from cobaya.sampler import CovmatSampler, Minimizer
 from cobaya.tools import read_dnumber, recursive_update
 
 # Handling scipy vs BOBYQA vs iMinuit
-evals_attr = {"scipy": "fun", "bobyqa": "f", "iminuit": "fun"}
+evals_attr = {"scipy": "fun", "bobyqa": "f", "iminuit": "fun", "DFCMA": "fun"}
 valid_methods = tuple(evals_attr)
 
 # Conventions conventions
@@ -275,6 +275,45 @@ class Minimize(Minimizer, CovmatSampler):
             self._bounds[:, 1],
         )
 
+    def run_cma_pipeline(self, x0, bounds, objective, filename):
+
+        # Convert bounds to your format
+        lower = bounds[:, 0]
+        upper = bounds[:, 1]
+
+        from .Chi2Minimizer import Chi2Minimizer
+
+        # ranges = upper - lower
+        # sigma0 = 0.05 * np.mean(ranges)
+
+        cma_configs = [
+            dict(sigma0=0.1, maxiter=75), # 75 350
+            dict(sigma0=0.05, maxiter=200), # 350
+            dict(sigma0=0.03, maxiter=400), # 500
+        ]
+
+        dfols_config = dict(
+            rhobeg=0.2,
+            rhoend=5e-5,
+            maxfun=1250, # 1250
+        )
+
+        minimizer = Chi2Minimizer(
+            objective_func=lambda x: objective(x),
+            bounds=(lower, upper),
+        )
+
+        x_best, f_best = minimizer.fit(
+            x0,
+            n_stages=3,
+            cma_configs=cma_configs,
+            dfols_config=dfols_config
+        )
+
+        minimizer.save_results(filename,self.inv_affine_transform)
+
+        return x_best, f_best
+
     def run(self):
         """
         Runs minimization functions
@@ -346,6 +385,30 @@ class Minimize(Minimizer, CovmatSampler):
                         self.log.error(result.message)
                     if mpi.get_mpi_size() > 1:
                         result.pop("minuit")  # problem with pickle/mpi?
+                elif self.method.lower() == "DFCMA":
+                    import timeit
+                    t = timeit.timeit(lambda: minuslogp_transf(initial_point), number=20)
+                    print(f"Average time for likelihood: {t/20:.6f} seconds")
+                    try:
+                        out_filename = os.path.join(
+                            self.output.folder,
+                            '%i_'%i + self.output.prefix + getdist_ext_ignore_prior[self.ignore_prior])
+                        x_best, f_best = self.run_cma_pipeline(
+                            initial_point,
+                            bounds,
+                            minuslogp_transf,
+                            out_filename
+                        )
+                        class Result:
+                            pass
+                        result = Result()
+                        result.x = x_best
+                        result.fun = f_best
+                        success = True
+                    except Exception as e:
+                        self.log.error(f"CMA minimizer failed: {e}")
+                        result = None
+                        success = False
                 else:
                     self.kwargs = {
                         "fun": minuslogp_transf,
@@ -624,12 +687,16 @@ class Minimize(Minimizer, CovmatSampler):
             r"iminuit minimizer(check citation for the "
             r"actual algorithm used at \url{https://iminuit.readthedocs.io/en/stable/reference.html#scipy-like-interface}"
         )
+        desc_DFCMA = (r"hybrid approach using"
+                        r"CMA-ES and dfols")
         if method and method.lower() == "bobyqa":
             return desc_bobyqa
         elif method and method.lower() == "scipy":
             return desc_scipy
         elif method and method.lower() == "iminuit":
             return desc_iminuit
+        elif method and method.lower() == "DFCMA":
+            return desc_DFCMA
         else:  # unknown method or no info passed (None)
             return (
                 "Minimizer -- method unknown, possibly one of:"

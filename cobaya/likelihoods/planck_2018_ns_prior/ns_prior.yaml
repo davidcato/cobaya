@@ -1,0 +1,5 @@
+# Gaussian mixtures likelihood, normalized
+
+# Means and covmats
+ns_mean: 0.9649
+ns_std: 0.042

@@ -1,0 +1,7 @@
+# https://arxiv.org/abs/2401.15054
+
+means: [0.02218]
+covariance: [[3.025e-07]]
+quantities: ['omegabh2']
+# Speed in evaluations/second
+speed: 4500

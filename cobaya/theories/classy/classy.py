@@ -415,12 +415,14 @@ class classy(BoltzmannBase):
             elif isinstance(k, tuple) and k[0] == "Pk_grid":
                 self.extra_args["output"] += " mPk"
                 v = deepcopy(v)
-                self.add_P_k_max(v.pop("k_max"), units="1/Mpc")
+                self.add_P_k_max(1.15*v.pop("k_max"), units="1/Mpc")
                 # NB: Actually, only the max z is used, and the actual sampling in z
                 # for computing P(k,z) is controlled by `perturb_sampling_stepsize`
                 # (default: 0.1). But let's leave it like this in case this changes
                 # in the future.
-                self.add_z_for_matter_power(v.pop("z"))
+                # self.add_z_for_matter_power(v.pop("z"))
+                z_req = v.pop("z")
+                self.add_z_for_matter_power(z_req)
                 if v["nonlinear"]:
                     if "non_linear" not in self.extra_args:
                         # this is redundant with initialisation, but just in case
@@ -442,13 +444,19 @@ class classy(BoltzmannBase):
                         kwargs=v,
                         post=(lambda P, kk, z: (kk, z, np.array(P).T)),
                     )
+                # elif pair == ("delta_nonu", "delta_nonu"):
+                #     v["only_clustering_species"] = True
+                #     self.collectors[k] = Collector(
+                #         method="get_pk_and_k_and_z",
+                #         kwargs=v,
+                #         post=(lambda P, kk, z: (kk, z, np.array(P).T)),
+                #     )
                 elif pair == ("delta_nonu", "delta_nonu"):
-                    v["only_clustering_species"] = True
+                    # z_req = v.pop("z")  # redshifts requested by likelihood
                     self.collectors[k] = Collector(
-                        method="get_pk_and_k_and_z",
-                        kwargs=v,
-                        post=(lambda P, kk, z: (kk, z, np.array(P).T)),
-                    )
+                        method="get_pk_cb_for_rept",
+                        kwargs={"z": np.array(z_req, dtype="float64")},
+                        post=(lambda P, kk, z: (kk, z, np.array(P).T)))
                 elif pair == ("Weyl", "Weyl"):
                     self.extra_args["output"] += " mTk"
                     self.collectors[k] = Collector(
