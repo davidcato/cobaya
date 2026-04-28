@@ -115,7 +115,7 @@ from cobaya.sampler import CovmatSampler, Minimizer
 from cobaya.tools import read_dnumber, recursive_update
 
 # Handling scipy vs BOBYQA vs iMinuit
-evals_attr = {"scipy": "fun", "bobyqa": "f", "iminuit": "fun", "DFCMA": "fun"}
+evals_attr = {"scipy": "fun", "bobyqa": "f", "iminuit": "fun", "dfcma": "fun"}
 valid_methods = tuple(evals_attr)
 
 # Conventions conventions
@@ -385,10 +385,11 @@ class Minimize(Minimizer, CovmatSampler):
                         self.log.error(result.message)
                     if mpi.get_mpi_size() > 1:
                         result.pop("minuit")  # problem with pickle/mpi?
-                elif self.method.lower() == "DFCMA":
-                    import timeit
-                    t = timeit.timeit(lambda: minuslogp_transf(initial_point), number=20)
-                    print(f"Average time for likelihood: {t/20:.6f} seconds")
+                elif self.method.lower() == "dfcma":
+                    # import timeit
+                    # self.log.debug(f"Computing average time")
+                    # t = timeit.timeit(lambda: minuslogp_transf(initial_point), number=20)
+                    # self.log.debug(f"Average time for likelihood: {t/20:.6f} seconds")
                     try:
                         out_filename = os.path.join(
                             self.output.folder,
@@ -687,7 +688,7 @@ class Minimize(Minimizer, CovmatSampler):
             r"iminuit minimizer(check citation for the "
             r"actual algorithm used at \url{https://iminuit.readthedocs.io/en/stable/reference.html#scipy-like-interface}"
         )
-        desc_DFCMA = (r"hybrid approach using"
+        desc_dfcma = (r"hybrid approach using"
                         r"CMA-ES and dfols")
         if method and method.lower() == "bobyqa":
             return desc_bobyqa
@@ -695,8 +696,8 @@ class Minimize(Minimizer, CovmatSampler):
             return desc_scipy
         elif method and method.lower() == "iminuit":
             return desc_iminuit
-        elif method and method.lower() == "DFCMA":
-            return desc_DFCMA
+        elif method and method.lower() == "dfcma":
+            return desc_dfcma
         else:  # unknown method or no info passed (None)
             return (
                 "Minimizer -- method unknown, possibly one of:"
