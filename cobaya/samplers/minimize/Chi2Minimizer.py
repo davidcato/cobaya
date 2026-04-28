@@ -78,12 +78,13 @@ class Chi2Minimizer:
     # -------------------------
     def run_cma(self, x0, config):
         x0_scaled = self.scale(x0) if self.use_scaling else x0
+        popsize_min = int(4 + 3 * np.log(len(x0_scaled)) + 1)
         opts = {
             'bounds': [0.0, 1.0] if self.use_scaling else None,
             'tolfunrel': config.get("tolfunrel", 5e-5),
-            'popsize': config.get("popsize", 14),
+            'popsize': config.get("popsize", popsize_min),
             'maxiter': config.get("maxiter", 500),
-            'maxfevals': config.get("maxfevals", 8000),
+            'maxfevals': config.get("maxfevals", 3000),
             'tolstagnation': config.get("tolstagnation", 500),
             'verb_disp': 50 if self.verbose else 0,
         }

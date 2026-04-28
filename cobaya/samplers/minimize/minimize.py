@@ -287,14 +287,14 @@ class Minimize(Minimizer, CovmatSampler):
         # sigma0 = 0.05 * np.mean(ranges)
 
         cma_configs = [
-            dict(sigma0=0.1, maxiter=75), # 75 350
-            dict(sigma0=0.05, maxiter=200), # 350
-            dict(sigma0=0.03, maxiter=400), # 500
+            dict(sigma0=0.125, maxiter=75, popsize=20), # 75 350
+            dict(sigma0=0.1, maxiter=150, popsize=12), # 350
+            dict(sigma0=0.04, maxiter=300, tolstagnation=150, tolfunrel=5e-4), # 500
         ]
 
         dfols_config = dict(
             rhobeg=0.2,
-            rhoend=5e-5,
+            rhoend=1e-3,
             maxfun=1250, # 1250
         )
 
