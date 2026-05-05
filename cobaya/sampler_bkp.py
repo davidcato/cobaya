@@ -664,26 +664,14 @@ class CovmatSampler(Sampler):
             else:
                 self.log.info("All parameters' covariance loaded from given covmat.")
         # Fill gaps with "proposal" property, if present, otherwise ref (or prior)
-        # where_nan = np.isnan(covmat.diagonal())
-        # if np.any(where_nan):
-        #     covmat[where_nan, where_nan] = np.array(
-        #         [
-        #             (info.get("proposal", np.nan) or np.nan) ** 2
-        #             for info in params_infos.values()
-        #         ]
-        #     )[where_nan]
-        diag = covmat.diagonal()
-
-        # Mask for invalid diagonal entries (NaN or zero)
-        invalid = np.isnan(diag) | (diag == 0)
-
-        if np.any(invalid):
-            proposals = np.array([
-                (info.get("proposal", np.nan) or np.nan) ** 2
-                for info in params_infos.values()
-            ])
-            
-            covmat[invalid, invalid] = proposals[invalid]
+        where_nan = np.isnan(covmat.diagonal())
+        if np.any(where_nan):
+            covmat[where_nan, where_nan] = np.array(
+                [
+                    (info.get("proposal", np.nan) or np.nan) ** 2
+                    for info in params_infos.values()
+                ]
+            )[where_nan]
         where_nan2 = np.isnan(covmat.diagonal())
         if np.any(where_nan2):
             # the variances are likely too large for a good proposal, e.g. conditional
@@ -694,8 +682,7 @@ class CovmatSampler(Sampler):
                 / self.fallback_covmat_scale
             )
         assert not np.any(np.isnan(covmat))
-        # return covmat, where_nan
-        return covmat, invalid
+        return covmat, where_nan
 
     def covmat_filename(self):
         if self.output:

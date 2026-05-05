@@ -242,8 +242,12 @@ class Minimize(Minimizer, CovmatSampler):
         self._bounds = self.model.prior.bounds(
             confidence_for_unbounded=self.confidence_for_unbounded
         )
+        # print('covmat:',covmat)
         # TODO: if ignore_prior, one should use *like* covariance (this is *post*)
-        covmat = self._load_covmat(prefer_load_old=self.output)[0]
+        # covmat = self._load_covmat(prefer_load_old=self.output)[0]
+        # covmat = self._load_covmat(prefer_load_old=False)[0]
+        covmat = self.initial_proposal_covmat(auto_params=None)[0]
+        # print('covmat:',covmat)
         # scale by conditional parameter widths (since not using correlation structure)
         scales = np.minimum(
             1 / np.sqrt(np.diag(np.linalg.inv(covmat))),
@@ -287,15 +291,15 @@ class Minimize(Minimizer, CovmatSampler):
         # sigma0 = 0.05 * np.mean(ranges)
 
         cma_configs = [
-            dict(sigma0=0.125, maxiter=75, popsize=20), # 75 350
-            dict(sigma0=0.1, maxiter=150, popsize=12), # 350
-            dict(sigma0=0.04, maxiter=300, tolstagnation=150, tolfunrel=5e-4), # 500
+            dict(sigma0=1.5, maxiter=30, popsize=15), # 75 350
+            dict(sigma0=1., maxiter=60, popsize=12), # 350
+            dict(sigma0=0.3, maxiter=120, tolstagnation=50, tolfunrel=1e-4), # 500
         ]
 
         dfols_config = dict(
             rhobeg=0.2,
-            rhoend=1e-3,
-            maxfun=1250, # 1250
+            rhoend=5e-5,
+            maxfun=1500, # 1250
         )
 
         minimizer = Chi2Minimizer(
@@ -386,10 +390,6 @@ class Minimize(Minimizer, CovmatSampler):
                     if mpi.get_mpi_size() > 1:
                         result.pop("minuit")  # problem with pickle/mpi?
                 elif self.method.lower() == "dfcma":
-                    # import timeit
-                    # self.log.debug(f"Computing average time")
-                    # t = timeit.timeit(lambda: minuslogp_transf(initial_point), number=20)
-                    # self.log.debug(f"Average time for likelihood: {t/20:.6f} seconds")
                     try:
                         out_filename = os.path.join(
                             self.output.folder,

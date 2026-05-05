@@ -8,7 +8,7 @@ class Chi2Minimizer:
         self,
         objective_func,
         bounds,
-        use_scaling=True,
+        use_scaling=False,
         verbose=True,
     ):
         """
@@ -27,7 +27,7 @@ class Chi2Minimizer:
         self.use_scaling = use_scaling
         self.verbose = verbose
 
-        self.results = []
+        self.results_to_save = []
 
     # -------------------------
     # Scaling utilities
@@ -47,27 +47,19 @@ class Chi2Minimizer:
         return float(val)
 
     def objective_safe(self, x):
-        try:
-            val = self.objective_func(x)
+        val = self.objective_func(x)
 
-            if isinstance(val, (list, tuple, np.ndarray)):
-                val = val[0] if len(val) > 0 else None
+        if val is None:
+            print("Objective returned None at:", x)
+            return 1e30
 
-            if val is None:
-                print("Objective returned None at:", x)
-                return 1e30
+        val = float(np.asarray(val))
 
-            val = float(val)
+        if not np.isfinite(val):
+            print("Objective returned non-finite:", val, "at", x)
+            return 1e30
 
-            if not np.isfinite(val):
-                print("Objective returned non-finite:", val, "at", x)
-                return np.array([1e30])
-
-            return np.array([val])
-
-        except Exception as e:
-            print("Objective exception at", x, ":", e)
-            return np.array([1e30])
+        return val
 
     def scaled_objective(self, x_scaled):
         x_real = self.unscale(np.array(x_scaled))
@@ -80,12 +72,12 @@ class Chi2Minimizer:
         x0_scaled = self.scale(x0) if self.use_scaling else x0
         popsize_min = int(4 + 3 * np.log(len(x0_scaled)) + 1)
         opts = {
-            'bounds': [0.0, 1.0] if self.use_scaling else None,
+            'bounds': [0.0, 1.0] if self.use_scaling else [self.lower,self.upper],
             'tolfunrel': config.get("tolfunrel", 5e-5),
             'popsize': config.get("popsize", popsize_min),
-            'maxiter': config.get("maxiter", 500),
-            'maxfevals': config.get("maxfevals", 3000),
-            'tolstagnation': config.get("tolstagnation", 500),
+            'maxiter': config.get("maxiter", 250),
+            'maxfevals': config.get("maxfevals", 2500),
+            'tolstagnation': config.get("tolstagnation", 75),
             'verb_disp': 50 if self.verbose else 0,
         }
 
@@ -105,59 +97,6 @@ class Chi2Minimizer:
 
         return x_best, result.fbest
 
-    # def run_cma(self, x0, config):
-    #     """
-    #     CMA-ES in Cobaya affine space (NO extra scaling layer).
-    #     """
-
-    #     x0 = np.asarray(x0)
-
-    #     # # Ensure bounds are in correct CMA format: ([lower], [upper])
-    #     # bounds = np.asarray(bounds)
-    #     # if bounds.shape != (2, len(x0)):
-    #     #     raise ValueError("Bounds must be shape (2, n_dim)")
-
-    #     lower = self.lower
-    #     upper = self.upper
-
-    #     # Safety: avoid degenerate bounds
-    #     span = upper - lower
-    #     if np.any(span <= 0):
-    #         raise ValueError("Invalid bounds: upper must be > lower")
-
-    #     sigma0 = config.get("sigma0", 0.1)
-
-    #     opts = {
-    #         "bounds": [lower, upper],
-    #         "tolfunrel": config.get("tolfunrel", 5e-5),
-    #         "popsize": config.get("popsize", 16),
-    #         "maxiter": config.get("maxiter", 500),
-    #         "maxfevals": config.get("maxfevals", 8000),
-    #         "tolstagnation": config.get("tolstagnation", 500),
-    #         "verb_disp": 50 if self.verbose else 0,
-    #     }
-
-    #     es = cma.CMAEvolutionStrategy(x0, sigma0, opts)
-
-    #     es.optimize(self.objective)
-
-    #     result = es.result
-
-    #     x_best = np.asarray(result.xbest)
-    #     f_best = result.fbest
-
-    #     # ---- hard safety checks ----
-    #     if x_best is None or f_best is None:
-    #         return x0, 1e30
-
-    #     if not np.all(np.isfinite(x_best)):
-    #         return x0, 1e30
-
-    #     if not np.isfinite(f_best):
-    #         return x0, 1e30
-
-    #     return x_best, float(f_best)
-
     # -------------------------
     # DFOLS optimizer
     # -------------------------
@@ -167,7 +106,9 @@ class Chi2Minimizer:
         default_npt = 2*len(x0)+1
 
         def objc(x):
-            return self.objective_safe(x)
+            # return self.objective_safe(x)
+            val = self.objective_safe(x)
+            return np.array([val])
 
         result = dfols.solve(
             objc,
@@ -177,11 +118,11 @@ class Chi2Minimizer:
             rhobeg=config.get("rhobeg", 0.2),
             rhoend=config.get("rhoend", 5e-5),
             npt=config.get("npt", min_npt),
-            maxfun=config.get("maxfun", 500),
+            maxfun=config.get("maxfun", 1500),
             print_progress=self.verbose,
             do_logging=False,
         )
-        return result.x, self.objective_safe(result.x)
+        return  result.x, float(self.objective_safe(result.x))
 
     # -------------------------
     # Full optimization pipeline
@@ -219,13 +160,8 @@ class Chi2Minimizer:
             if self.verbose:
                 print("After CMA:", f_best)
 
-            self.results.append(("CMA", k, f_best, x_best.copy()))
+            self.results_to_save.append(("CMA", k, f_best, x_best.copy()))
 
-            # print("DFOLS raw result.x:", result.x)
-            # print("DFOLS success:", getattr(result, "success", None))
-
-            # print("DEBUG x_best:", type(x_best), x_best.shape, x_best.dtype)
-            # print("DEBUG finite:", np.all(np.isfinite(x_best)))
             if self.verbose:
                 print(f"--- DFOLS ---")
             # ---- DFOLS refinement ----
@@ -240,7 +176,7 @@ class Chi2Minimizer:
             if self.verbose:
                 print("After DFOLS:", f_best)
 
-            self.results.append(("DFOLS", k, f_best, x_best.copy()))
+            self.results_to_save.append(("DFOLS", k, f_best, x_best.copy()))
 
             x_current, f_current = x_best, f_best
 
@@ -251,7 +187,7 @@ class Chi2Minimizer:
     # -------------------------
     def save_results(self, filename, inv_affine_transform, fmt=None):
         data = []
-        for method, k, fval, x in self.results:
+        for method, k, fval, x in self.results_to_save:
             row = [k, fval] + list(inv_affine_transform(np.array(x)))
             data.append(row)
 
